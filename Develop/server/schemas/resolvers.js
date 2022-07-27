@@ -1,0 +1,64 @@
+const { AuthenticationError } = require('apollo-server-express');
+const {User} = require('../models')
+const {signToken} = require('../utils/auth')
+const resolvers = {
+    Query: {
+        users: async () => {
+
+            return User.find();
+        },
+        me: async (parent, {username}) => {
+            console.log(User.findOne({username}).select('-__v -password'))
+            return User.findOne({username}).select('-__v -password');
+        }
+    },
+    Mutation: {
+        addUser: async (parent, args) => {
+            const {username, email, password} = args
+            const user = await User.create(args);
+            
+            const token = signToken(user)
+            
+            return { token, user };
+        },
+        removeUser: async (parent, {username}) => {
+            return User.remove({username: username})
+        },
+        saveBook: async (parent, args) => {
+            console.log('11111111111', args)
+            const bookData = args.input;
+            const {username} = args
+            return User.findOneAndUpdate(
+                { username: username },
+                { $addToSet: { savedBooks: bookData } },
+                { new: true, runValidators: true }
+              )
+        },
+        removeBook: async (parent, {_id,bookId}) => {
+            
+              return User.findOneAndUpdate(
+                { _id: _id },
+                { $pull: { savedBooks: { bookId: bookId } } },
+                { new: true }
+              )
+        },
+        login: async (parent, { email, password }) => {
+            const user = await User.findOne({ email });
+      
+            if (!user) {
+              throw new AuthenticationError('Incorrect credentials');
+            }
+      
+            const correctPw = await user.isCorrectPassword(password);
+      
+            if (!correctPw) {
+              throw new AuthenticationError('Incorrect credentials');
+            }
+      
+            const token = signToken(user);
+            return { token, user };
+          }
+    }
+}
+
+module.exports = resolvers;
